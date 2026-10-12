@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session
+from sqlalchemy import ColumnElement, func, select
+from sqlalchemy.orm import InstrumentedAttribute, Session
 
 from app.config import Settings
 from app.db.models import (
@@ -32,12 +32,14 @@ def create_simulation(
     settings: Settings,
     *,
     project_name: str | None = None,
+    owner_id: str | None = None,
 ) -> Simulation:
     report = ensure_valid(spec, settings)
-    project_id = _project_id(session, project_name)
+    project_id = _project_id(session, project_name, owner_id)
     now = utcnow()
     record = Simulation(
         id=str(uuid.uuid4()),
+        owner_id=owner_id,
         project_id=project_id,
         title=spec.title,
         description=spec.description,
@@ -69,12 +71,15 @@ def update_simulation(
     settings: Settings,
     *,
     project_name: str | None = None,
+    owner_id: str | None = None,
 ) -> Simulation:
-    record = get_simulation(session, simulation_id)
+    record = get_simulation(session, simulation_id, owner_id)
     if record.status in {"queued", "running"}:
         raise ConflictError("A queued or running simulation cannot be edited.")
     report = ensure_valid(spec, settings)
-    record.project_id = _project_id(session, project_name) if project_name is not None else record.project_id
+    record.project_id = (
+        _project_id(session, project_name, owner_id) if project_name is not None else record.project_id
+    )
     record.title = spec.title
     record.description = spec.description
     record.spec_json = spec.model_dump_json()
@@ -97,20 +102,21 @@ def update_simulation(
     return record
 
 
-def delete_simulation(session: Session, simulation_id: str) -> None:
-    record = get_simulation(session, simulation_id)
+def delete_simulation(session: Session, simulation_id: str, owner_id: str | None) -> None:
+    record = get_simulation(session, simulation_id, owner_id)
     if record.status in {"queued", "running"}:
         raise ConflictError("Cancel the simulation before deleting it.")
     session.delete(record)
     session.commit()
 
 
-def duplicate_simulation(session: Session, simulation_id: str) -> Simulation:
-    source = get_simulation(session, simulation_id)
+def duplicate_simulation(session: Session, simulation_id: str, owner_id: str | None) -> Simulation:
+    source = get_simulation(session, simulation_id, owner_id)
     spec = ElectionSpecification.model_validate_json(source.spec_json)
     now = utcnow()
     record = Simulation(
         id=str(uuid.uuid4()),
+        owner_id=owner_id,
         project_id=source.project_id,
         title=spec.title,
         description=spec.description,
@@ -135,9 +141,9 @@ def duplicate_simulation(session: Session, simulation_id: str) -> Simulation:
     return record
 
 
-def get_simulation(session: Session, simulation_id: str) -> Simulation:
+def get_simulation(session: Session, simulation_id: str, owner_id: str | None) -> Simulation:
     record = session.get(Simulation, simulation_id)
-    if record is None:
+    if record is None or record.owner_id != owner_id:
         raise NotFoundError("Simulation not found.")
     return record
 
@@ -148,9 +154,10 @@ def list_simulations(
     limit: int,
     offset: int,
     project_id: str | None,
+    owner_id: str | None,
 ) -> tuple[list[Simulation], int]:
-    query = select(Simulation)
-    count_query = select(func.count()).select_from(Simulation)
+    query = select(Simulation).where(_owner_clause(Simulation.owner_id, owner_id))
+    count_query = select(func.count()).select_from(Simulation).where(_owner_clause(Simulation.owner_id, owner_id))
     if project_id:
         query = query.where(Simulation.project_id == project_id)
         count_query = count_query.where(Simulation.project_id == project_id)
@@ -161,8 +168,8 @@ def list_simulations(
     return list(rows), total
 
 
-def queue_simulation(session: Session, simulation_id: str, settings: Settings) -> Simulation:
-    record = get_simulation(session, simulation_id)
+def queue_simulation(session: Session, simulation_id: str, settings: Settings, owner_id: str | None) -> Simulation:
+    record = get_simulation(session, simulation_id, owner_id)
     if record.status in {"queued", "running"}:
         raise ConflictError("This simulation is already queued or running.")
     spec = ElectionSpecification.model_validate_json(record.spec_json)
@@ -181,8 +188,8 @@ def queue_simulation(session: Session, simulation_id: str, settings: Settings) -
     return record
 
 
-def cancel_if_queued(session: Session, simulation_id: str) -> Simulation:
-    record = get_simulation(session, simulation_id)
+def cancel_if_queued(session: Session, simulation_id: str, owner_id: str | None) -> Simulation:
+    record = get_simulation(session, simulation_id, owner_id)
     if record.status == "queued":
         record.status = "cancelled"
         record.error_message = "Cancelled before execution started."
@@ -206,8 +213,14 @@ def stored_spec(record: Simulation) -> ElectionSpecification:
     return ElectionSpecification.model_validate_json(record.spec_json)
 
 
-def compare_stored(session: Session, simulation_id: str, left_id: str, right_id: str) -> ComparisonResult:
-    record = get_simulation(session, simulation_id)
+def compare_stored(
+    session: Session,
+    simulation_id: str,
+    left_id: str,
+    right_id: str,
+    owner_id: str | None,
+) -> ComparisonResult:
+    record = get_simulation(session, simulation_id, owner_id)
     output = stored_results(record)
     lookup = {scenario.scenario_id: scenario for scenario in output.scenarios}
     if left_id not in lookup or right_id not in lookup:
@@ -239,8 +252,12 @@ def recent_audit(session: Session, simulation_id: str, limit: int = 30) -> list[
     )
 
 
-def list_projects(session: Session) -> list[Project]:
-    return list(session.scalars(select(Project).order_by(Project.created_at.desc())).all())
+def list_projects(session: Session, owner_id: str | None) -> list[Project]:
+    return list(
+        session.scalars(
+            select(Project).where(_owner_clause(Project.owner_id, owner_id)).order_by(Project.created_at.desc())
+        ).all()
+    )
 
 
 def validation_report(record: Simulation) -> ValidationReport | None:
@@ -259,9 +276,11 @@ def record_dataset(
     row_count: int,
     schema_name: str,
     summary_json: str,
+    owner_id: str | None,
 ) -> DatasetRecord:
     record = DatasetRecord(
         id=str(uuid.uuid4()),
+        owner_id=owner_id,
         filename=filename,
         content_type=content_type,
         sha256=sha256,
@@ -277,14 +296,22 @@ def record_dataset(
     return record
 
 
-def _project_id(session: Session, name: str | None) -> str | None:
+def _owner_clause(column: InstrumentedAttribute[str | None], owner_id: str | None) -> ColumnElement[bool]:
+    if owner_id is None:
+        return column.is_(None)
+    return column == owner_id
+
+
+def _project_id(session: Session, name: str | None, owner_id: str | None) -> str | None:
     if name is None or not name.strip():
         return None
     cleaned = name.strip()[:200]
-    existing = session.scalar(select(Project).where(Project.name == cleaned))
+    existing = session.scalar(
+        select(Project).where(Project.name == cleaned, _owner_clause(Project.owner_id, owner_id))
+    )
     if existing is not None:
         return existing.id
-    project = Project(id=str(uuid.uuid4()), name=cleaned, description="", created_at=utcnow())
+    project = Project(id=str(uuid.uuid4()), owner_id=owner_id, name=cleaned, description="", created_at=utcnow())
     session.add(project)
     session.flush()
     return project.id

@@ -12,7 +12,7 @@ jobs:
         image: postgres:16-alpine
         env:
           POSTGRES_USER: election
-          POSTGRES_PASSWORD: election
+          POSTGRES_PASSWORD: ci-only-database-password
           POSTGRES_DB: election
         ports:
           - 5432:5432
@@ -22,7 +22,7 @@ jobs:
           --health-timeout 5s
           --health-retries 20
     env:
-      DATABASE_URL: postgresql+psycopg://election:election@localhost:5432/election
+      DATABASE_URL: postgresql+psycopg://election:ci-only-database-password@localhost:5432/election
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

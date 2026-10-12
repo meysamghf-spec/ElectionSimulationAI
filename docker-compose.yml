@@ -19,12 +19,17 @@ services:
       dockerfile: backend/Dockerfile
     environment:
       DATABASE_URL: postgresql+psycopg://election:${POSTGRES_PASSWORD:-change-me-local-only}@db:5432/election
-      CORS_ORIGINS: http://localhost:3000
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
       API_TOKEN: ${API_TOKEN:-}
+      AUTH_MODE: ${AUTH_MODE:-development}
+      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-false}
+      INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL:-}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
+      SESSION_HOURS: ${SESSION_HOURS:-12}
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_BASE_URL: ${LLM_BASE_URL:-https://api.openai.com/v1}
       LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
-      ENVIRONMENT: ${ENVIRONMENT:-production}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
     depends_on:
       db:
         condition: service_healthy
@@ -37,6 +42,8 @@ services:
       dockerfile: frontend/Dockerfile
     environment:
       API_INTERNAL_URL: http://api:8000
+      # Read by the Next.js server in private mode. It is not exposed as NEXT_PUBLIC_API_TOKEN.
+      API_TOKEN: ${API_TOKEN:-}
     depends_on:
       - api
     ports:
