@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { clientAddressFromEdge } from "@/lib/clientAddress";
+
 export const dynamic = "force-dynamic";
 
 const HOP_BY_HOP = ["connection", "keep-alive", "transfer-encoding", "content-encoding", "content-length", "host"];
@@ -11,6 +13,11 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
   const headers = new Headers(request.headers);
   for (const name of HOP_BY_HOP) headers.delete(name);
   headers.delete("authorization");
+  const edgeAddress = clientAddressFromEdge(headers.get("x-forwarded-for"));
+  headers.delete("x-forwarded-for");
+  headers.delete("x-real-ip");
+  headers.delete("forwarded");
+  if (edgeAddress) headers.set("x-forwarded-for", edgeAddress);
   const serverToken = process.env.API_TOKEN;
   if (serverToken) headers.set("authorization", `Bearer ${serverToken}`);
   const init: RequestInit = {

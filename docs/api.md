@@ -54,4 +54,4 @@ Access depends on `AUTH_MODE`:
 
 Login and registration responses include `csrf_token` so the client can echo it. They do not include the session id. The Next.js proxy forwards each `Set-Cookie` header. In private mode it attaches `API_TOKEN` on the server and drops a browser-supplied `Authorization` header.
 
-Request bodies are limited to `MAX_UPLOAD_BYTES` (default 2,000,000). Interpret, execute, import, and sensitivity routes are rate limited per client address. Login and registration use `AUTH_RATE_LIMIT_PER_MINUTE` (default 10).
+Request bodies are limited to `MAX_UPLOAD_BYTES` (default 2,000,000). Interpret, execute, import, and sensitivity routes are rate limited per client identity. Login and registration use `AUTH_RATE_LIMIT_PER_MINUTE` (default 10). The identity is the TCP peer unless `TRUSTED_PROXY_CIDRS` contains that peer and `X-Forwarded-For` is a single IP. The limiter is in-process memory, not a shared store. The Next.js proxy forwards that single IP and drops a multi-value or invalid header.

@@ -60,6 +60,6 @@ def ensure_initial_admin(db: Session, settings: Settings) -> None:
         return
     if settings.environment == "production" and existing == 0 and not settings.allow_registration:
         raise RuntimeError(
-            "No accounts exist. Set INITIAL_ADMIN_EMAIL and INITIAL_ADMIN_PASSWORD for the first user, "
-            "or set ALLOW_REGISTRATION=true."
+            "No accounts exist. Set INITIAL_ADMIN_EMAIL and INITIAL_ADMIN_PASSWORD for the first user. "
+            "Public registration stays closed."
         )

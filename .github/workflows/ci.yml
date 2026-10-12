@@ -79,9 +79,22 @@ jobs:
 
   docker:
     runs-on: ubuntu-latest
+    env:
+      # Public CI placeholders. Do not reuse them as a production password.
+      SITE_ADDRESS: example.com
+      ACME_EMAIL: certs@example.com
+      POSTGRES_PASSWORD: ci-only-database-password
+      INITIAL_ADMIN_EMAIL: operator@example.com
+      INITIAL_ADMIN_PASSWORD: ci-only-admin-password-value
     steps:
       - uses: actions/checkout@v4
-      - name: Validate Compose
-        run: docker compose config
-      - name: Build images
-        run: docker compose build
+      - name: Validate production Compose
+        run: |
+          docker compose --profile production config --format json > /tmp/prod-compose.json
+          python3 scripts/check_compose_config.py /tmp/prod-compose.json production
+      - name: Validate development Compose
+        run: |
+          docker compose -f docker-compose.dev.yml config --format json > /tmp/dev-compose.json
+          python3 scripts/check_compose_config.py /tmp/dev-compose.json development
+      - name: Build production images
+        run: docker compose --profile production build

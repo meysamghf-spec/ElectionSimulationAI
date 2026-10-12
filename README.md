@@ -39,13 +39,19 @@ Interactive API docs: http://localhost:8000/docs.
 
 ## Docker
 
-Docker was not available in the environment that produced this repository, so the image build has not been executed here. The Compose file is the intended path:
+Local development binds the API, the site, and PostgreSQL to `127.0.0.1` only:
 
 ```bash
-docker compose up --build
+docker compose -f docker-compose.dev.yml up --build
 ```
 
-The web container calls the API at `http://api:8000`. PostgreSQL data stays in the `pgdata` volume. Compose defaults to `ENVIRONMENT=development` and a local placeholder database password so a laptop can start. A process with `ENVIRONMENT=production` refuses to start until `AUTH_MODE` is `accounts` or `private`, the database URL is PostgreSQL with a long non-placeholder password, and CORS lists `https` origins. See [Deployment](docs/deployment.md).
+The production file does not publish those ports. On a VM it starts only with the production profile, and only Caddy listens on ports 80 and 443:
+
+```bash
+docker compose --profile production up -d --build
+```
+
+That command needs `SITE_ADDRESS`, `ACME_EMAIL`, and `POSTGRES_PASSWORD` in the environment. It does not deploy this repository by itself. The web container calls the API at `http://api:8000` on the Docker network. See [Deployment](docs/deployment.md) and [Backups](docs/backup.md).
 
 ## Tests
 
@@ -76,6 +82,7 @@ PostgreSQL tests run when `DATABASE_URL` starts with `postgresql`. Without it, t
 - [Examples](docs/examples.md)
 - [Testing](docs/testing.md)
 - [Deployment](docs/deployment.md)
+- [Backups](docs/backup.md)
 - [Security](docs/security.md)
 - [Privacy and limitations](docs/privacy.md)
 - [Troubleshooting](docs/troubleshooting.md)
@@ -84,11 +91,11 @@ PostgreSQL tests run when `DATABASE_URL` starts with `postgresql`. Without it, t
 
 Local development uses `AUTH_MODE=development`. That mode is one shared workspace with no login. Do not expose it on a network.
 
-`AUTH_MODE=accounts` gives each user their own simulations. Passwords are stored as Argon2 hashes. The browser gets an HttpOnly session cookie and must send the matching `X-CSRF-Token` on changes. Registration is closed unless `ALLOW_REGISTRATION=true`. Create the first account with `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` when the user table is empty, then remove the password from the environment. Later accounts can be created with `CREATE_USER_EMAIL` and `CREATE_USER_PASSWORD` through `python -m app.auth.cli` from the `backend` directory. There is no email verification and no self-service password reset.
+`AUTH_MODE=accounts` gives each user their own simulations. Passwords are stored as Argon2 hashes. The browser gets an HttpOnly session cookie and must send the matching `X-CSRF-Token` on changes. Registration stays closed. Production startup rejects `ALLOW_REGISTRATION=true`. Create the first account with `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` when the user table is empty, then remove the password from the environment. Later accounts can be created with `CREATE_USER_EMAIL` and `CREATE_USER_PASSWORD` through `python -m app.auth.cli` from the `backend` directory. Account registration is not suitable for unrestricted public signup until email verification, password recovery, abuse prevention, and appropriate account-management workflows exist.
 
 `AUTH_MODE=private` is one shared workspace protected by `API_TOKEN`. The Next.js server can hold that token. The browser does not. Everyone who can open the site shares the same simulations. This is not multi-user isolation.
 
-Neither accounts mode nor private mode has been deployed to a public host from this repository. Accounts mode is suitable for a private HTTPS deployment with those limits. It is not a public identity system.
+Neither accounts mode nor private mode has been deployed to a public host from this repository.
 
 ## Assumptions that affect use
 

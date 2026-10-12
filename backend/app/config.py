@@ -5,6 +5,8 @@ from urllib.parse import unquote, urlsplit
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.security import trusted_proxy_problems
+
 WEAK_SECRETS = {
     "change-me",
     "change-me-local-only",
@@ -48,6 +50,7 @@ class Settings(BaseSettings):
     llm_timeout_seconds: float = 30.0
     environment: str = "development"
     log_level: str = "INFO"
+    trusted_proxy_cidrs: str = ""
 
     @property
     def normalized_auth_mode(self) -> str:
@@ -114,5 +117,11 @@ def validate_production(settings: Settings) -> None:
             problems.append(
                 "Private mode requires API_TOKEN of at least 32 characters that is not a known placeholder."
             )
+    if settings.allow_registration:
+        problems.append(
+            "ALLOW_REGISTRATION must be false. Public signup is not supported until email verification, "
+            "password recovery, abuse prevention, and account-management workflows exist."
+        )
+    problems.extend(trusted_proxy_problems(settings.trusted_proxy_cidrs))
     if problems:
         raise RuntimeError("Refusing to start in production:\n- " + "\n- ".join(problems))

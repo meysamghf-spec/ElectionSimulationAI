@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import ipaddress
 import secrets
 import threading
 import time
@@ -42,6 +43,89 @@ def is_anonymous_ok(path: str, method: str, auth_mode: str) -> bool:
     if method == "GET" and (path == "/api/v1/examples" or path.startswith("/api/v1/examples/")):
         return True
     return method == "POST" and path in _ACCOUNT_PUBLIC_POST
+
+
+def trusted_proxy_problems(raw: str) -> list[str]:
+    """Reject missing, invalid, or world-wide proxy networks."""
+
+    if not raw.strip():
+        return [
+            "TRUSTED_PROXY_CIDRS must list the Docker networks allowed to send X-Forwarded-For. "
+            "An empty list ignores that header."
+        ]
+    problems: list[str] = []
+    networks = 0
+    for part in raw.split(","):
+        item = part.strip()
+        if not item:
+            continue
+        try:
+            network = ipaddress.ip_network(item, strict=False)
+        except ValueError:
+            problems.append("TRUSTED_PROXY_CIDRS contains an invalid network.")
+            continue
+        networks += 1
+        if network.prefixlen == 0:
+            problems.append(
+                "TRUSTED_PROXY_CIDRS must not include a world-wide network such as 0.0.0.0/0 or ::/0."
+            )
+    if networks == 0 and not problems:
+        problems.append("TRUSTED_PROXY_CIDRS must list at least one network.")
+    return problems
+
+
+def parse_trusted_networks(raw: str) -> list[ipaddress.IPv4Network | ipaddress.IPv6Network]:
+    networks: list[ipaddress.IPv4Network | ipaddress.IPv6Network] = []
+    for part in raw.split(","):
+        item = part.strip()
+        if not item:
+            continue
+        networks.append(ipaddress.ip_network(item, strict=False))
+    return networks
+
+
+def single_forwarded_ip(header: str | None) -> str | None:
+    """Accept exactly one IP. A chain, a blank, or garbage is not a client address."""
+
+    if header is None:
+        return None
+    value = header.strip()
+    if not value or "," in value or any(character.isspace() for character in value):
+        return None
+    candidate = value[1:-1] if value.startswith("[") and value.endswith("]") else value
+    try:
+        return str(ipaddress.ip_address(candidate))
+    except ValueError:
+        return None
+
+
+def peer_is_trusted(peer: str | None, networks: list[ipaddress.IPv4Network | ipaddress.IPv6Network]) -> bool:
+    if not peer or not networks:
+        return False
+    try:
+        address = ipaddress.ip_address(peer)
+    except ValueError:
+        return False
+    return any(address in network for network in networks)
+
+
+def rate_limit_identity(peer: str | None, forwarded_header: str | None, trusted_cidrs: str) -> str:
+    """Use a forwarded client IP only when the TCP peer is on a trusted proxy network.
+
+    The limiter is in-memory and per process. This function does not make it distributed.
+    """
+
+    try:
+        networks = parse_trusted_networks(trusted_cidrs)
+    except ValueError:
+        networks = []
+    if peer_is_trusted(peer, networks):
+        forwarded = single_forwarded_ip(forwarded_header)
+        if forwarded is not None:
+            return forwarded
+    if peer:
+        return peer
+    return "unknown"
 
 
 def token_matches(presented: str, expected: str) -> bool:
