@@ -38,7 +38,7 @@ from app.io.csv_import import import_regions_csv
 from app.io.pdf_export import render_pdf
 from app.io.safety import safe_filename
 from app.schemas.spec import ElectionSpecification
-from app.security import error_body
+from app.security import error_body, rate_limit_identity
 from app.services.executor import SimulationExecutor
 from app.services.simulations import (
     cancel_if_queued,
@@ -116,8 +116,10 @@ def get_owner_id(request: Request) -> str | None:
 
 def _limit(request: Request, bucket: str, *, auth: bool = False) -> None:
     limiter = request.app.state.auth_rate_limiter if auth else request.app.state.rate_limiter
-    host = request.client.host if request.client else "unknown"
-    if not limiter.allow(f"{bucket}:{host}"):
+    settings = request.app.state.settings
+    peer = request.client.host if request.client else None
+    identity = rate_limit_identity(peer, request.headers.get("x-forwarded-for"), settings.trusted_proxy_cidrs)
+    if not limiter.allow(f"{bucket}:{identity}"):
         raise AppError(
             "Rate limit exceeded. Wait a minute and try again.",
             status_code=429,

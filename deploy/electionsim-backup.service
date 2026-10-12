@@ -1,0 +1,10 @@
+[Unit]
+Description=ElectionSimulationAI PostgreSQL backup
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/electionsim
+Environment=BACKUP_DIR=/var/backups/electionsim
+ExecStart=/opt/electionsim/deploy/backup.sh

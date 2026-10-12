@@ -9,3 +9,5 @@
 **/.env
 backend/data
 **/*.db
+backups
+**/*.dump

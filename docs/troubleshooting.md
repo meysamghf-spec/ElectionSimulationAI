@@ -2,7 +2,7 @@
 
 ## The page says the API is not reachable
 
-Start the backend from the `backend` directory on port 8000, or set `API_INTERNAL_URL` to the address the Next.js server can use. Inside Compose that address is `http://api:8000`, not `localhost`.
+Start the backend from the `backend` directory on port 8000, or set `API_INTERNAL_URL` to the address the Next.js server can use. Inside Compose that address is `http://api:8000`, not `localhost`. The production Compose file does not publish port 8000 on the VM. Use `docker compose --profile production ps` and the container health status when a production stack does not answer on HTTPS.
 
 ## Ready check returns 503
 

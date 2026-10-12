@@ -392,9 +392,54 @@ def test_production_rejects_insecure_defaults() -> None:
             )
         )
     validate_production(
-        Settings(environment="production", auth_mode="accounts", database_url=postgres, cors_origins="https://example.com")
+        Settings(
+            environment="production",
+            auth_mode="accounts",
+            database_url=postgres,
+            cors_origins="https://example.com",
+            trusted_proxy_cidrs="172.28.10.10/32",
+        )
+    )
+    validate_production(
+        Settings(
+            environment="production",
+            auth_mode="private",
+            database_url=postgres,
+            cors_origins="https://example.com",
+            api_token="p" * 32,
+            trusted_proxy_cidrs="172.28.10.10/32",
+        )
     )
     validate_production(Settings(environment="development", auth_mode="development"))
+    assert Settings(environment="production").cookie_secure is True
+    assert Settings(environment="development").cookie_secure is False
+
+
+def test_production_rejects_open_registration_and_world_proxies() -> None:
+    long_password = "a-sufficiently-long-password"
+    postgres = f"postgresql+psycopg://election:{long_password}@db:5432/election"
+
+    def settings(**overrides: object) -> Settings:
+        values: dict[str, object] = {
+            "environment": "production",
+            "auth_mode": "accounts",
+            "database_url": postgres,
+            "cors_origins": "https://example.com",
+            "trusted_proxy_cidrs": "172.28.10.10/32",
+        }
+        values.update(overrides)
+        return Settings(**values)  # type: ignore[arg-type]
+
+    with pytest.raises(RuntimeError, match="ALLOW_REGISTRATION"):
+        validate_production(settings(allow_registration=True))
+    with pytest.raises(RuntimeError, match="TRUSTED_PROXY_CIDRS"):
+        validate_production(settings(trusted_proxy_cidrs=""))
+    with pytest.raises(RuntimeError, match="0.0.0.0/0"):
+        validate_production(settings(trusted_proxy_cidrs="0.0.0.0/0"))
+    with pytest.raises(RuntimeError, match="::/0"):
+        validate_production(settings(trusted_proxy_cidrs="::/0"))
+    with pytest.raises(RuntimeError, match="TRUSTED_PROXY_CIDRS"):
+        validate_production(settings(trusted_proxy_cidrs="not-a-network"))
 
 
 def test_initial_admin_is_hashed_and_required(tmp_path: Path) -> None:
