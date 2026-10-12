@@ -1,0 +1,23 @@
+import type { Metadata, Viewport } from "next";
+import { Shell } from "@/components/Shell";
+import "./globals.css";
+
+export const metadata: Metadata = {
+  title: "ElectionSimulationAI",
+  description: "Hypothetical election simulation and statistical analysis from stated assumptions.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body>
+        <Shell>{children}</Shell>
+      </body>
+    </html>
+  );
+}

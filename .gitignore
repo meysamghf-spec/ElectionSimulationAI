@@ -1,0 +1,17 @@
+node_modules/
+.next/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+dist/
+coverage/
+*.tsbuildinfo
+.env
+backend/data/
+*.db
+*.sqlite
+*.sqlite3
