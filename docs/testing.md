@@ -1,6 +1,6 @@
 # Testing
 
-Backend tests live in `backend/tests`. They cover hand-checked plurality, D'Hondt, ranked-choice, and two-round results; zero voters; all-invalid ballots; segment sizes; probability totals; scenario comparison; the deterministic parser; sensitivity; CSV import; formula-injection prefixes on export; API authentication; and the body size limit.
+Backend tests live in `backend/tests`. They cover hand-checked plurality, D'Hondt, ranked-choice, and two-round results; zero voters; all-invalid ballots; segment sizes; probability totals; scenario comparison; the deterministic parser; sensitivity; CSV import; formula-injection prefixes on export; the shared API token; account registration and login; cross-user 404s; invalid sessions; CSRF; auth rate limits; production setting checks; Argon2 storage; restart failure of a running job; and the body size limit.
 
 Frontend tests live in `frontend/tests`. They check formatters, placeholder specifications, the configuration editor, navigation, validation errors, and that the results view renders the vote totals passed into it.
 

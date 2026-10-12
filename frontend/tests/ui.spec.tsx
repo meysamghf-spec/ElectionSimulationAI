@@ -60,6 +60,21 @@ describe("configuration editor", () => {
 
 describe("navigation", () => {
   it("exposes the primary workflow links", () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(
+          JSON.stringify({
+            authenticated: false,
+            email: null,
+            auth_mode: "development",
+            registration_open: false,
+            csrf_token: null,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
     render(<Shell><p>Home</p></Shell>);
     expect(screen.getByRole("link", { name: "New simulation" })).toHaveAttribute("href", "/new");
     expect(screen.getByRole("link", { name: "History" })).toHaveAttribute("href", "/history");

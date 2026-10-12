@@ -10,6 +10,9 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
   const target = `${base}/api/v1/${path.join("/")}${request.nextUrl.search}`;
   const headers = new Headers(request.headers);
   for (const name of HOP_BY_HOP) headers.delete(name);
+  headers.delete("authorization");
+  const serverToken = process.env.API_TOKEN;
+  if (serverToken) headers.set("authorization", `Bearer ${serverToken}`);
   const init: RequestInit = {
     method: request.method,
     headers,
@@ -20,9 +23,16 @@ async function proxy(request: NextRequest, context: { params: Promise<{ path: st
   }
   try {
     const response = await fetch(target, init);
-    const outgoing = new Headers(response.headers);
-    for (const name of HOP_BY_HOP) outgoing.delete(name);
-    return new NextResponse(response.body, { status: response.status, headers: outgoing });
+    const outgoing = new Headers();
+    response.headers.forEach((value, key) => {
+      if (HOP_BY_HOP.includes(key.toLowerCase()) || key.toLowerCase() === "set-cookie") return;
+      outgoing.append(key, value);
+    });
+    const next = new NextResponse(response.body, { status: response.status, headers: outgoing });
+    const setCookie = (response.headers as Headers & { getSetCookie?: () => string[] }).getSetCookie;
+    const cookies = setCookie ? setCookie.call(response.headers) : [];
+    for (const cookie of cookies) next.headers.append("set-cookie", cookie);
+    return next;
   } catch {
     return NextResponse.json(
       {

@@ -13,11 +13,13 @@ The application does not ask for individual voter identities, contact details, b
 
 ## Accounts and access
 
-This version has no user accounts and no per-user ownership. Stored simulations are visible to anyone who can call the API.
+`AUTH_MODE=development` is one shared local workspace. Anyone who can call that API can read its simulations. Do not expose that mode.
 
-Set `API_TOKEN` to require `Authorization: Bearer <token>` on data routes. Health checks stay open for load balancers. The token is a shared deployment secret, not a personal login. Holders of the token can read and delete simulations on that instance.
+`AUTH_MODE=accounts` stores an email and an Argon2 password hash. Simulations, projects, and dataset records are tied to that user. Another signed-in user cannot read or change them. The session id is an HttpOnly cookie. The browser does not keep an API token. There is no email verification and no self-service password reset.
 
-There is no cookie session. Browser token entry, if you use the settings page, is stored in local storage for that browser.
+`AUTH_MODE=private` uses one shared deployment token held by the server. Holders of the site share one workspace. Health checks stay open for load balancers.
+
+Rows created in development have no owner. After switching the same database to accounts, those rows are hidden rather than given to the first user.
 
 ## Results are not official
 

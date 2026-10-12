@@ -19,6 +19,30 @@ PUBLIC_PATHS = {
     "/openapi.json",
 }
 
+_ACCOUNT_PUBLIC_GET = {
+    "/api/v1/meta",
+    "/api/v1/imports/schemas",
+    "/api/v1/auth/me",
+}
+_ACCOUNT_PUBLIC_POST = {
+    "/api/v1/auth/login",
+    "/api/v1/auth/register",
+}
+
+
+def is_anonymous_ok(path: str, method: str, auth_mode: str) -> bool:
+    """Paths a caller may use without a session or deployment token."""
+
+    if path in PUBLIC_PATHS:
+        return True
+    if auth_mode != "accounts":
+        return False
+    if method == "GET" and (path in _ACCOUNT_PUBLIC_GET or path.startswith("/api/v1/content/")):
+        return True
+    if method == "GET" and (path == "/api/v1/examples" or path.startswith("/api/v1/examples/")):
+        return True
+    return method == "POST" and path in _ACCOUNT_PUBLIC_POST
+
 
 def token_matches(presented: str, expected: str) -> bool:
     return secrets.compare_digest(

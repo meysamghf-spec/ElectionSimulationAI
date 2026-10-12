@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { api } from "@/lib/api";
+import type { SessionResponse } from "@/lib/types";
 import { HypotheticalBanner } from "./HypotheticalBanner";
 
 const LINKS = [
@@ -17,7 +19,36 @@ const LINKS = [
 
 export function Shell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
+  const [session, setSession] = useState<SessionResponse | null>(null);
   const path = usePathname();
+  const router = useRouter();
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const payload = await api<SessionResponse>("/auth/me");
+        if (!cancelled) setSession(payload);
+      } catch {
+        if (!cancelled) setSession(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [path]);
+
+  async function logout() {
+    try {
+      await api("/auth/logout", { method: "POST" });
+    } catch {
+      // The session is already gone, or this server does not use accounts.
+    }
+    setSession(null);
+    setOpen(false);
+    router.push("/login");
+    router.refresh();
+  }
 
   return (
     <>
@@ -49,6 +80,19 @@ export function Shell({ children }: { children: React.ReactNode }) {
                 {link.label}
               </Link>
             ))}
+            {session?.auth_mode === "accounts" && session.authenticated ? (
+              <>
+                <span>{session.email}</span>
+                <button type="button" className="secondary" onClick={() => void logout()}>
+                  Sign out
+                </button>
+              </>
+            ) : null}
+            {session?.auth_mode === "accounts" && !session.authenticated ? (
+              <Link href="/login" onClick={() => setOpen(false)}>
+                Sign in
+              </Link>
+            ) : null}
           </nav>
         </div>
       </header>
