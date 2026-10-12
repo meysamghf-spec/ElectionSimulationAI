@@ -1,5 +1,4 @@
 const DRAFT_KEY = "esim.draft.v1";
-const TOKEN_KEY = "esim.apiToken";
 
 import type { ElectionSpecification } from "./types";
 
@@ -20,14 +19,4 @@ export function saveDraft(spec: ElectionSpecification): void {
 
 export function clearDraft(): void {
   window.localStorage.removeItem(DRAFT_KEY);
-}
-
-export function loadToken(): string {
-  if (typeof window === "undefined") return "";
-  return window.localStorage.getItem(TOKEN_KEY) ?? "";
-}
-
-export function saveToken(token: string): void {
-  if (token.trim()) window.localStorage.setItem(TOKEN_KEY, token.trim());
-  else window.localStorage.removeItem(TOKEN_KEY);
 }

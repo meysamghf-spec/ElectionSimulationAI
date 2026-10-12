@@ -39,7 +39,19 @@ Errors use:
 | POST | `/imports/csv` | Multipart regional CSV |
 | POST | `/imports/json` | JSON specification |
 | GET | `/projects` | Project names created with simulations |
+| POST | `/auth/register` | Create an account when registration is open, then set the session cookie |
+| POST | `/auth/login` | Set the session cookie. Wrong email and wrong password use the same message |
+| POST | `/auth/logout` | Revoke the session. Requires the CSRF header |
+| GET | `/auth/me` | `{authenticated, email, auth_mode, registration_open, csrf_token}` |
 
-When `API_TOKEN` is set, send `Authorization: Bearer <token>` except for `/health`, `/ready`, `/docs`, `/redoc`, and `/openapi.json`.
+`GET /meta` includes `auth_mode` and `registration_open`. It does not include tokens, password hashes, or the language-model key.
 
-Request bodies are limited to `MAX_UPLOAD_BYTES` (default 2,000,000). Interpret, execute, import, and sensitivity routes are rate limited per client address.
+Access depends on `AUTH_MODE`:
+
+- `development`: open, unless `API_TOKEN` is set. A set token is required on data routes and is compared by SHA-256 digest. Public exceptions are `/health`, `/ready`, `/docs`, `/redoc`, and `/openapi.json`.
+- `private`: the same token rule. `/auth/login` is not a user system in this mode.
+- `accounts`: data and mutation routes require the `esim_session` cookie. Mutations also require `X-CSRF-Token`. Anonymous callers can use health, ready, meta, examples, content, import schemas, login, and registration. A resource owned by another user is HTTP 404.
+
+Login and registration responses include `csrf_token` so the client can echo it. They do not include the session id. The Next.js proxy forwards each `Set-Cookie` header. In private mode it attaches `API_TOKEN` on the server and drops a browser-supplied `Authorization` header.
+
+Request bodies are limited to `MAX_UPLOAD_BYTES` (default 2,000,000). Interpret, execute, import, and sensitivity routes are rate limited per client address. Login and registration use `AUTH_RATE_LIMIT_PER_MINUTE` (default 10).

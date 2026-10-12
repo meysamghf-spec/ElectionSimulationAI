@@ -45,7 +45,7 @@ Docker was not available in the environment that produced this repository, so th
 docker compose up --build
 ```
 
-The web container calls the API at `http://api:8000`. PostgreSQL data stays in the `pgdata` volume. The default database password is a local placeholder in `.env.example`. Change `POSTGRES_PASSWORD` before any shared deployment.
+The web container calls the API at `http://api:8000`. PostgreSQL data stays in the `pgdata` volume. Compose defaults to `ENVIRONMENT=development` and a local placeholder database password so a laptop can start. A process with `ENVIRONMENT=production` refuses to start until `AUTH_MODE` is `accounts` or `private`, the database URL is PostgreSQL with a long non-placeholder password, and CORS lists `https` origins. See [Deployment](docs/deployment.md).
 
 ## Tests
 
@@ -80,10 +80,19 @@ PostgreSQL tests run when `DATABASE_URL` starts with `postgresql`. Without it, t
 - [Privacy and limitations](docs/privacy.md)
 - [Troubleshooting](docs/troubleshooting.md)
 
+## Access
+
+Local development uses `AUTH_MODE=development`. That mode is one shared workspace with no login. Do not expose it on a network.
+
+`AUTH_MODE=accounts` gives each user their own simulations. Passwords are stored as Argon2 hashes. The browser gets an HttpOnly session cookie and must send the matching `X-CSRF-Token` on changes. Registration is closed unless `ALLOW_REGISTRATION=true`. Create the first account with `INITIAL_ADMIN_EMAIL` and `INITIAL_ADMIN_PASSWORD` when the user table is empty, then remove the password from the environment. Later accounts can be created with `CREATE_USER_EMAIL` and `CREATE_USER_PASSWORD` through `python -m app.auth.cli` from the `backend` directory. There is no email verification and no self-service password reset.
+
+`AUTH_MODE=private` is one shared workspace protected by `API_TOKEN`. The Next.js server can hold that token. The browser does not. Everyone who can open the site shares the same simulations. This is not multi-user isolation.
+
+Neither accounts mode nor private mode has been deployed to a public host from this repository. Accounts mode is suitable for a private HTTPS deployment with those limits. It is not a public identity system.
+
 ## Assumptions that affect use
 
-- There are no user accounts. Set `API_TOKEN` if the API is reachable by more than one trusted operator. Everyone who has the token can read the stored simulations.
-- SQLite is durable local storage. It is not the production database. Production should set `DATABASE_URL` to PostgreSQL.
+- SQLite is durable local storage. It is not the production database. Production must set `DATABASE_URL` to PostgreSQL or the process will not start.
 - No language-model key is required. Interpretation then stays on the deterministic parser, and the UI says so.
-- Long runs use an in-process thread pool, not a separate worker queue. A process restart marks queued or running jobs failed.
+- Long runs use an in-process thread pool, not a separate worker queue. A process restart marks queued or running jobs failed. Cancellation is checked only for a job this process already accepted, and only after the caller is allowed to see that simulation.
 - `wait=true` is limited to 5,000 iterations. Larger runs return HTTP 202 and are polled.

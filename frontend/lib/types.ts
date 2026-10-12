@@ -339,6 +339,8 @@ export interface MetaResponse {
   llm_configured: boolean;
   interpreter_default: string;
   api_token_required: boolean;
+  auth_mode: string;
+  registration_open: boolean;
   max_iterations: number;
   max_candidates: number;
   max_regions: number;
@@ -347,6 +349,14 @@ export interface MetaResponse {
   authentication: string;
   disclaimer: string;
   worker: string;
+}
+
+export interface SessionResponse {
+  authenticated: boolean;
+  email: string | null;
+  auth_mode: string;
+  registration_open: boolean;
+  csrf_token: string | null;
 }
 
 export interface ApiErrorBody {

@@ -1,5 +1,4 @@
 import type { ApiErrorBody } from "./types";
-import { loadToken } from "./draft";
 
 export class ApiError extends Error {
   status: number;
@@ -14,14 +13,27 @@ export class ApiError extends Error {
   }
 }
 
-export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+function csrfToken(): string {
+  if (typeof document === "undefined") return "";
+  const match = document.cookie.match(/(?:^|; )esim_csrf=([^;]*)/);
+  return match ? decodeURIComponent(match[1]) : "";
+}
+
+function withSession(init?: RequestInit): RequestInit {
   const headers = new Headers(init?.headers);
   if (init?.body && !(init.body instanceof FormData) && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
   }
-  const token = loadToken();
-  if (token) headers.set("Authorization", `Bearer ${token}`);
-  const response = await fetch(`/api/v1${path}`, { ...init, headers, cache: "no-store" });
+  const method = (init?.method || "GET").toUpperCase();
+  if (method !== "GET" && method !== "HEAD") {
+    const csrf = csrfToken();
+    if (csrf) headers.set("X-CSRF-Token", csrf);
+  }
+  return { ...init, headers, cache: "no-store", credentials: "include" };
+}
+
+export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await fetch(`/api/v1${path}`, withSession(init));
   if (!response.ok) {
     let body: { error?: ApiErrorBody } | null = null;
     try {
@@ -36,10 +48,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export async function downloadFile(path: string, filename: string): Promise<void> {
-  const headers = new Headers();
-  const token = loadToken();
-  if (token) headers.set("Authorization", `Bearer ${token}`);
-  const response = await fetch(`/api/v1${path}`, { headers, cache: "no-store" });
+  const response = await fetch(`/api/v1${path}`, withSession());
   if (!response.ok) {
     let body: { error?: ApiErrorBody } | null = null;
     try {

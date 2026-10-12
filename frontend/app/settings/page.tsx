@@ -1,24 +1,13 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { loadToken, saveToken } from "@/lib/draft";
 import type { MetaResponse } from "@/lib/types";
 import { ErrorText } from "@/components/ErrorText";
 
-const SettingsPage = dynamic(() => Promise.resolve(SettingsForm), {
-  ssr: false,
-  loading: () => <p>Loading settings…</p>,
-});
-
-export default SettingsPage;
-
-function SettingsForm() {
+export default function SettingsPage() {
   const [meta, setMeta] = useState<MetaResponse | null>(null);
   const [error, setError] = useState<unknown>(null);
-  const [token, setToken] = useState(() => loadToken());
-  const [saved, setSaved] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -39,7 +28,7 @@ function SettingsForm() {
     <div className="stack">
       <header className="page-head">
         <h1>Settings</h1>
-        <p>There are no user accounts. An optional bearer token, when the API is configured with one, is stored only in this browser.</p>
+        <p>The browser does not store API tokens. Access depends on the server auth mode.</p>
       </header>
       <ErrorText error={error} />
       {meta ? (
@@ -55,6 +44,10 @@ function SettingsForm() {
               <dd>{meta.environment}</dd>
             </div>
             <div>
+              <dt>Auth mode</dt>
+              <dd>{meta.auth_mode}</dd>
+            </div>
+            <div>
               <dt>Algorithm</dt>
               <dd>{meta.algorithm_version}</dd>
             </div>
@@ -63,8 +56,8 @@ function SettingsForm() {
               <dd>{meta.llm_configured ? "configured" : "not configured; deterministic parser is used"}</dd>
             </div>
             <div>
-              <dt>API token required</dt>
-              <dd>{meta.api_token_required ? "yes" : "no"}</dd>
+              <dt>Registration</dt>
+              <dd>{meta.registration_open ? "open" : "closed"}</dd>
             </div>
             <div>
               <dt>Worker</dt>
@@ -84,48 +77,17 @@ function SettingsForm() {
           {meta.persistence === "sqlite" ? (
             <p className="notice">
               This API is using SQLite. That is a durable local database, not PostgreSQL. Set DATABASE_URL to a
-              PostgreSQL URL for the production path.
+              PostgreSQL URL for a shared deployment.
+            </p>
+          ) : null}
+          {meta.auth_mode === "development" ? (
+            <p className="notice">
+              Development mode keeps one shared local workspace so the app can be used without an account. Production
+              startup refuses this mode.
             </p>
           ) : null}
         </section>
       ) : null}
-      <form
-        className="card stack"
-        onSubmit={(event) => {
-          event.preventDefault();
-          saveToken(token);
-          setSaved(true);
-        }}
-      >
-        <h2>API token</h2>
-        <label className="field">
-          <span>Bearer token</span>
-          <input
-            type="password"
-            autoComplete="off"
-            value={token}
-            onChange={(event) => {
-              setToken(event.target.value);
-              setSaved(false);
-            }}
-          />
-        </label>
-        <div className="button-row">
-          <button type="submit">Save token in this browser</button>
-          <button
-            type="button"
-            className="secondary"
-            onClick={() => {
-              setToken("");
-              saveToken("");
-              setSaved(true);
-            }}
-          >
-            Clear token
-          </button>
-        </div>
-        {saved ? <p>Saved locally. The token is not written into the repository.</p> : null}
-      </form>
     </div>
   );
 }

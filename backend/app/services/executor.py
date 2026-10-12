@@ -34,14 +34,15 @@ class SimulationExecutor:
             self._cancel[simulation_id] = event
         self._pool.submit(self.run, simulation_id, event)
 
-    def request_cancel(self, simulation_id: str) -> threading.Event:
+    def request_cancel(self, simulation_id: str) -> bool:
+        """Signal a job this process already accepted. Unknown ids are ignored."""
+
         with self._lock:
             event = self._cancel.get(simulation_id)
             if event is None:
-                event = threading.Event()
-                self._cancel[simulation_id] = event
-        event.set()
-        return event
+                return False
+            event.set()
+            return True
 
     def run(self, simulation_id: str, event: threading.Event | None = None) -> None:
         if event is None:

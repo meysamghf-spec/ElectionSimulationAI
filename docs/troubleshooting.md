@@ -24,9 +24,21 @@ Probability totals, blank plus invalid above 1, duplicate ids, plurality with mo
 
 Cancellation applies only after the simulation is queued or running. The button stays disabled until then.
 
+## The API refuses to start
+
+`ENVIRONMENT=production` exits before serving if auth mode, the PostgreSQL URL, the database password, or CORS is still at a development default. The error lists the failed checks. Local Compose stays on `ENVIRONMENT=development` unless you override it.
+
+## Sign-in returns 401 or the cookie disappears
+
+Accounts mode is required for `/auth/login`. In production the session cookie is `Secure`, so the site has to be served over HTTPS. A change without `X-CSRF-Token` returns 403. Registration returns 403 while `ALLOW_REGISTRATION` is false. Create the operator with `INITIAL_ADMIN_EMAIL` or `python -m app.auth.cli`.
+
+## A simulation that existed locally is missing after accounts are enabled
+
+Rows created in development have no owner. Accounts mode does not show them. They are still in the database.
+
 ## SQLite versus PostgreSQL
 
-`GET /api/v1/meta` reports `persistence`. `sqlite` means the local file. Set `DATABASE_URL` to PostgreSQL before treating the deployment as production.
+`GET /api/v1/meta` reports `persistence`. `sqlite` means the local file. Production startup rejects SQLite.
 
 ## Large iteration counts
 
