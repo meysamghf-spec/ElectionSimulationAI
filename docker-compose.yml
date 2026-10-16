@@ -79,7 +79,7 @@ services:
       args:
         NODE_IMAGE: ${NODE_IMAGE:-node:22-bookworm-slim}
         NPM_REGISTRY: ${NPM_REGISTRY:-}
-        NEXT_PUBLIC_DEFAULT_LOCALE: ${DEFAULT_LOCALE:-fa}
+        NEXT_PUBLIC_DEFAULT_LOCALE: ${DEFAULT_LOCALE:-en}
     profiles: ["production"]
     restart: unless-stopped
     environment:

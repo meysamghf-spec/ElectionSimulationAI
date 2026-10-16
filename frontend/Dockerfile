@@ -4,7 +4,7 @@ FROM ${NODE_IMAGE} AS build
 # Optional npm mirror, for servers where registry.npmjs.org is slow or blocked.
 ARG NPM_REGISTRY=
 # Interface language baked into the build: fa (default, RTL) or en.
-ARG NEXT_PUBLIC_DEFAULT_LOCALE=fa
+ARG NEXT_PUBLIC_DEFAULT_LOCALE=en
 ENV NEXT_PUBLIC_DEFAULT_LOCALE=${NEXT_PUBLIC_DEFAULT_LOCALE} \
     NEXT_TELEMETRY_DISABLED=1
 

@@ -54,7 +54,7 @@ docker compose --profile production up -d --build
 
 That command needs `SITE_ADDRESS`, `POSTGRES_PASSWORD`, and the first-account variables in `.env`. To use a shared PostgreSQL server instead of the bundled one, add `-f docker-compose.shared-db.yml` and set `DATABASE_URL`. Health check: `GET /health`. Step-by-step guide for an Iranian VPS: [DEPLOY.md](DEPLOY.md). Also see [Backups](docs/backup.md).
 
-The interface is Persian (RTL) by default with an English toggle in the header. Set `DEFAULT_LOCALE=en` at build time for an English default.
+The interface is English (LTR) by default with a فارسی (Persian, RTL) toggle in the header; the choice is saved in the browser. Set `DEFAULT_LOCALE=fa` at build time to show Persian to first-time visitors.
 
 ## Tests
 

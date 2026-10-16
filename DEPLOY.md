@@ -1,6 +1,6 @@
 # Deploying ElectionSimulationAI on an Iranian VPS
 
-**خلاصهٔ فارسی:** این برنامه روی یک سرور مجازی ایرانی با Docker Compose اجرا می‌شود و پشت **یک Caddy مشترک** (برای همهٔ پلتفرم‌ها) روی یک زیردامنه مثل `election.example.ir` قرار می‌گیرد. این پروژه هیچ پورتی را روی سرور باز نمی‌کند؛ فقط Caddy مشترک پورت‌های ۸۰ و ۴۴۳ را باز می‌کند. پایگاه داده یا داخل همین پروژه است (پیش‌فرض) یا Postgres مشترک سرور. رمزها فقط در فایل `.env` روی سرور نگه داشته می‌شوند. همهٔ نتایج سامانه «شبیه‌سازی فرضی» هستند و این موضوع در بالای همهٔ صفحه‌ها نمایش داده می‌شود.
+**خلاصهٔ فارسی:** این برنامه روی یک سرور مجازی ایرانی با Docker Compose اجرا می‌شود و پشت **یک Caddy مشترک** (برای همهٔ پلتفرم‌ها) روی یک زیردامنه مثل `election.example.ir` قرار می‌گیرد. این پروژه هیچ پورتی را روی سرور باز نمی‌کند؛ فقط Caddy مشترک پورت‌های ۸۰ و ۴۴۳ را باز می‌کند. پایگاه داده یا داخل همین پروژه است (پیش‌فرض) یا Postgres مشترک سرور. رمزها فقط در فایل `.env` روی سرور نگه داشته می‌شوند. همهٔ نتایج سامانه «شبیه‌سازی فرضی» هستند و این موضوع در بالای همهٔ صفحه‌ها نمایش داده می‌شود. زبان پیش‌فرض رابط کاربری انگلیسی است و با دکمهٔ «فارسی» در بالای صفحه به فارسی (راست‌به‌چپ) تغییر می‌کند و انتخاب کاربر در مرورگر ذخیره می‌شود.
 
 The rest of this guide is in English so commands can be copied exactly.
 
@@ -137,7 +137,7 @@ INITIAL_ADMIN_PASSWORD=<long random value>
 # optional Iranian mirrors, see step 1
 PIP_INDEX_URL=
 NPM_REGISTRY=
-DEFAULT_LOCALE=fa
+DEFAULT_LOCALE=en        # or fa to show Persian to first-time visitors
 ```
 
 Leave `LLM_API_KEY` empty. The built-in deterministic parser works without any AI provider, and OpenAI-style providers are not reachable from Iran. If you later use an Iranian OpenAI-compatible provider, set `LLM_API_KEY`, `LLM_BASE_URL`, and `LLM_MODEL`.
@@ -220,4 +220,4 @@ Rollback: `git checkout <previous tag or commit>` and run `up -d --build` again.
 
 - Every page shows a fixed banner (Persian and English): results are hypothetical simulations, not official results, polls, or real predictions. Every export and API result carries `"hypothetical": true`.
 - Use hypothetical candidates and regions only. Do not present outputs as forecasts of any real Iranian election.
-- The interface is Persian (RTL) by default with an English toggle. The detailed configuration editor, results dashboard, and import screens are still in English.
+- The interface is English (LTR) by default with a فارسی (Persian, RTL) toggle in the header; the choice is saved in the browser. The detailed configuration editor, results dashboard, and import screens are still in English in both modes.
