@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import { SpecEditor } from "@/components/SpecEditor";
@@ -75,10 +75,37 @@ describe("navigation", () => {
         ),
       ),
     );
+    window.localStorage.clear();
     render(<Shell><p>Home</p></Shell>);
+    // English is the default interface.
+    expect(document.documentElement.dir).toBe("ltr");
     expect(screen.getByRole("link", { name: "New simulation" })).toHaveAttribute("href", "/new");
     expect(screen.getByRole("link", { name: "History" })).toHaveAttribute("href", "/history");
-    expect(screen.getByRole("note")).toHaveTextContent("hypothetical");
+    expect(screen.getByRole("note")).toHaveTextContent("not real predictions");
+  });
+
+  it("switches to Persian, sets RTL, and remembers the choice", async () => {
+    cleanup();
+    window.localStorage.clear();
+    render(<Shell><p>Home</p></Shell>);
+    expect(document.documentElement.dir).toBe("ltr");
+    fireEvent.click(screen.getByRole("button", { name: "Switch the interface to Persian" }));
+    expect(await screen.findByRole("link", { name: "شبیه‌سازی جدید" })).toHaveAttribute("href", "/new");
+    expect(screen.getByRole("link", { name: "تاریخچه" })).toHaveAttribute("href", "/history");
+    expect(screen.getByRole("note")).toHaveTextContent("فقط شبیه‌سازی");
+    expect(screen.getByRole("note")).toHaveTextContent("not official results");
+    expect(document.documentElement.dir).toBe("rtl");
+    expect(window.localStorage.getItem("electionsim.locale")).toBe("fa");
+
+    // A fresh mount (next visit) restores Persian from storage, and the toggle goes back to English.
+    cleanup();
+    render(<Shell><p>Home</p></Shell>);
+    expect(await screen.findByRole("link", { name: "شبیه‌سازی جدید" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Switch the interface to English" }));
+    expect(await screen.findByRole("link", { name: "New simulation" })).toBeInTheDocument();
+    expect(document.documentElement.dir).toBe("ltr");
+    expect(window.localStorage.getItem("electionsim.locale")).toBe("en");
+    window.localStorage.clear();
   });
 });
 

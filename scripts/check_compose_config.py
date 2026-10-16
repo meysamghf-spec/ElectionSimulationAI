@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check a rendered Compose config for published ports. Does not print the config."""
+"""Check a rendered Compose config for published ports and networks. Does not print the config."""
 
 from __future__ import annotations
 
@@ -38,35 +38,39 @@ def compose_problems(config: Mapping[str, Any], mode: str) -> list[str]:
 
 
 def _production_problems(config: Mapping[str, Any], services: Mapping[str, Any]) -> list[str]:
+    """Production sits behind ONE shared Caddy on the server. Nothing here may publish a host port."""
+
     problems: list[str] = []
-    for name in ("db", "api", "web", "caddy"):
+    api = services.get("api")
+    web = services.get("web")
+    db = services.get("db")
+    shared_db = isinstance(api, dict) and "shareddb" in _networks(api)
+    required = ("api", "web") if shared_db else ("db", "api", "web")
+    for name in required:
         if name not in services:
             problems.append(f"Production config is missing the {name} service.")
+    if "caddy" in services:
+        problems.append("Production must not bundle Caddy. The server's shared Caddy is the only proxy.")
     for name, service in services.items():
         if not isinstance(service, dict):
             continue
         for port in _published(service):
             published = str(port.get("published"))
-            if published not in {"80", "443"}:
-                problems.append(f"{name} publishes port {published}. Production may publish only 80 and 443.")
-        if name in {"db", "api", "web"} and _published(service):
-            problems.append(f"{name} must not publish a host port in production.")
-    api = services.get("api")
-    web = services.get("web")
-    db = services.get("db")
-    caddy = services.get("caddy")
+            problems.append(f"{name} publishes host port {published}. Production must not publish any host port.")
     if isinstance(db, dict) and _networks(db) != {"data"}:
         problems.append("db must be attached only to the data network.")
-    if isinstance(api, dict) and _networks(api) != {"data", "internal"}:
-        problems.append("api must be attached to the data and internal networks.")
-    if isinstance(web, dict) and _networks(web) != {"internal", "edge"}:
-        problems.append("web must be attached to the internal and edge networks.")
+    if isinstance(api, dict):
+        expected = {"internal", "shareddb"} if shared_db else {"data", "internal"}
+        if _networks(api) != expected:
+            problems.append(f"api must be attached only to the {' and '.join(sorted(expected))} networks.")
+    if isinstance(web, dict) and _networks(web) != {"internal", "proxy"}:
+        problems.append("web must be attached to the internal and proxy networks.")
     if isinstance(web, dict) and _network_ip(web, "internal") != "172.28.10.10":
         problems.append("web must use internal address 172.28.10.10 so the API can trust that host only.")
-    if isinstance(caddy, dict) and _networks(caddy) != {"edge"}:
-        problems.append("caddy must be attached only to the edge network.")
     networks = config.get("networks") or {}
-    internal = networks.get("internal") if isinstance(networks, dict) else None
+    if not isinstance(networks, dict):
+        networks = {}
+    internal = networks.get("internal")
     subnets: list[str] = []
     if isinstance(internal, dict):
         ipam = internal.get("ipam") or {}
@@ -75,6 +79,12 @@ def _production_problems(config: Mapping[str, Any], services: Mapping[str, Any])
             subnets = [str(item.get("subnet")) for item in configs if isinstance(item, dict)]
     if "172.28.10.0/24" not in subnets:
         problems.append("The internal network must use subnet 172.28.10.0/24.")
+    data = networks.get("data")
+    if not shared_db and not (isinstance(data, dict) and data.get("internal") is True):
+        problems.append("The data network must be internal (no outside route).")
+    proxy = networks.get("proxy")
+    if not (isinstance(proxy, dict) and proxy.get("external") is True):
+        problems.append("The proxy network must be external, shared with the server's Caddy.")
     if isinstance(api, dict):
         environment = api.get("environment") or {}
         trusted = _env_value(environment, "TRUSTED_PROXY_CIDRS")

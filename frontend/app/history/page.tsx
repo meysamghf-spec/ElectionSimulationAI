@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import type { SimulationSummary } from "@/lib/types";
 import { ErrorText } from "@/components/ErrorText";
+import { useI18n } from "@/lib/i18n";
 
 export default function HistoryPage() {
+  const { t, numberLocale } = useI18n();
   const [items, setItems] = useState<SimulationSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [offset, setOffset] = useState(0);
@@ -37,16 +39,16 @@ export default function HistoryPage() {
   return (
     <div className="stack">
       <header className="page-head">
-        <h1>Simulation history</h1>
-        <p>Saved configurations and runs stored by the API. A server restart keeps them when the database file or PostgreSQL volume is intact.</p>
+        <h1>{t("history.title")}</h1>
+        <p>{t("history.lead")}</p>
       </header>
       <ErrorText error={error} />
-      {loading ? <p>Loading saved simulations…</p> : null}
+      {loading ? <p>{t("history.loading")}</p> : null}
       {!loading && items.length === 0 ? (
         <div className="card stack">
-          <p>No saved simulations yet.</p>
+          <p>{t("history.empty")}</p>
           <a className="button" href="/new">
-            Create one
+            {t("history.create")}
           </a>
         </div>
       ) : null}
@@ -55,20 +57,23 @@ export default function HistoryPage() {
           <li key={item.id} className="card">
             <h2>{item.title}</h2>
             <p>
-              Status: {item.status}. Method: {item.voting_method}. Iterations: {item.iterations.toLocaleString("en-US")}.
+              {t("history.status")}: {item.status}. {t("history.method")}: {item.voting_method}. {t("history.iterations")}:{" "}
+              {item.iterations.toLocaleString(numberLocale)}.
             </p>
-            <p>Updated {item.updated_at}</p>
+            <p>
+              {t("history.updated")}: <bdi>{item.updated_at}</bdi>
+            </p>
             <div className="button-row">
               <a className="button secondary" href={`/simulations/${item.id}/details`}>
-                Details
+                {t("history.details")}
               </a>
               {item.status === "completed" ? (
                 <a className="button" href={`/simulations/${item.id}`}>
-                  Results
+                  {t("history.results")}
                 </a>
               ) : (
                 <a className="button" href={`/simulations/${item.id}/run`}>
-                  Execution
+                  {t("history.execution")}
                 </a>
               )}
             </div>
@@ -77,13 +82,15 @@ export default function HistoryPage() {
       </ul>
       <div className="button-row">
         <button type="button" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - limit))}>
-          Previous page
+          {t("history.prev")}
         </button>
         <button type="button" disabled={offset + limit >= total} onClick={() => setOffset(offset + limit)}>
-          Next page
+          {t("history.next")}
         </button>
         <span>
-          {total === 0 ? "0 saved" : `${offset + 1}–${Math.min(offset + limit, total)} of ${total}`}
+          {total === 0
+            ? t("history.none")
+            : `${offset + 1}–${Math.min(offset + limit, total)} ${t("history.of")} ${total}`}
         </span>
       </div>
     </div>

@@ -15,7 +15,6 @@ def _valid(**overrides: str) -> dict[str, str]:
         "CORS_ORIGINS": "https://example.com",
         "POSTGRES_PASSWORD": PASSWORD,
         "SITE_ADDRESS": "example.com",
-        "ACME_EMAIL": "certs@example.com",
         "TRUSTED_PROXY_CIDRS": "172.28.10.10/32",
         "API_INTERNAL_URL": "http://api:8000",
         "ALLOW_REGISTRATION": "false",
@@ -55,3 +54,10 @@ def test_existing_users_flag_replaces_the_initial_password() -> None:
     env = _valid(INITIAL_ADMIN_EMAIL="", INITIAL_ADMIN_PASSWORD="")
     assert any("INITIAL_ADMIN_EMAIL" in problem for problem in production_problems(env))
     assert production_problems(_valid(INITIAL_ADMIN_EMAIL="", INITIAL_ADMIN_PASSWORD="", EXISTING_USERS="true")) == []
+
+
+def test_shared_database_does_not_need_the_bundled_password() -> None:
+    shared = f"postgresql+psycopg://electionsim:{PASSWORD}@postgres:5432/electionsim"
+    assert production_problems(_valid(DATABASE_URL=shared, POSTGRES_PASSWORD="")) == []
+    bundled = "\n".join(production_problems(_valid(POSTGRES_PASSWORD="")))
+    assert "POSTGRES_PASSWORD is required." in bundled

@@ -45,13 +45,16 @@ Local development binds the API, the site, and PostgreSQL to `127.0.0.1` only:
 docker compose -f docker-compose.dev.yml up --build
 ```
 
-The production file does not publish those ports. On a VM it starts only with the production profile, and only Caddy listens on ports 80 and 443:
+The production file publishes **no** host ports and does not bundle a reverse proxy. It is meant to sit behind the server's one shared Caddy, which reaches the site as `electionsim-web:3000` on the external `caddy` Docker network:
 
 ```bash
+docker network create caddy   # once per server
 docker compose --profile production up -d --build
 ```
 
-That command needs `SITE_ADDRESS`, `ACME_EMAIL`, and `POSTGRES_PASSWORD` in the environment. It does not deploy this repository by itself. The web container calls the API at `http://api:8000` on the Docker network. See [Deployment](docs/deployment.md) and [Backups](docs/backup.md).
+That command needs `SITE_ADDRESS`, `POSTGRES_PASSWORD`, and the first-account variables in `.env`. To use a shared PostgreSQL server instead of the bundled one, add `-f docker-compose.shared-db.yml` and set `DATABASE_URL`. Health check: `GET /health`. Step-by-step guide for an Iranian VPS: [DEPLOY.md](DEPLOY.md). Also see [Backups](docs/backup.md).
+
+The interface is English (LTR) by default with a فارسی (Persian, RTL) toggle in the header; the choice is saved in the browser. Set `DEFAULT_LOCALE=fa` at build time to show Persian to first-time visitors.
 
 ## Tests
 

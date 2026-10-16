@@ -1,5 +1,7 @@
 "use client";
 
+import { useI18n } from "@/lib/i18n";
+
 export default function GlobalError({
   error,
   reset,
@@ -7,12 +9,13 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const { t } = useI18n();
   return (
     <div className="stack">
-      <h1>This page failed to render</h1>
-      <p>{error.message || "An unexpected error occurred."}</p>
+      <h1>{t("error.title")}</h1>
+      <p>{error.message || t("error.unknown")}</p>
       <button type="button" onClick={() => reset()}>
-        Try again
+        {t("error.retry")}
       </button>
     </div>
   );

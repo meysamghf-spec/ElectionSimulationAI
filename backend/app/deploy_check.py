@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import sys
 from collections.abc import Mapping
+from urllib.parse import urlsplit
 
 from app.auth.passwords import validate_password
 from app.config import Settings, database_password, validate_production
@@ -43,15 +44,17 @@ def production_problems(env: Mapping[str, str]) -> list[str]:
         "AUTH_MODE",
         "DATABASE_URL",
         "CORS_ORIGINS",
-        "POSTGRES_PASSWORD",
         "SITE_ADDRESS",
-        "ACME_EMAIL",
         "TRUSTED_PROXY_CIDRS",
         "API_INTERNAL_URL",
     )
     for name in required:
         if not (env.get(name) or "").strip():
             problems.append(f"{name} is required.")
+    # The bundled database (host "db") needs POSTGRES_PASSWORD. A shared PostgreSQL server does not.
+    bundled_db = (urlsplit(env.get("DATABASE_URL") or "").hostname or "db") == "db"
+    if bundled_db and not (env.get("POSTGRES_PASSWORD") or "").strip():
+        problems.append("POSTGRES_PASSWORD is required.")
 
     if (env.get("ENVIRONMENT") or "").strip() != "production":
         problems.append("ENVIRONMENT must be production.")
@@ -70,10 +73,6 @@ def production_problems(env: Mapping[str, str]) -> list[str]:
     cors = (env.get("CORS_ORIGINS") or "").strip()
     if site and "://" not in site and "/" not in site and cors != f"https://{site}":
         problems.append("CORS_ORIGINS must be exactly https://SITE_ADDRESS.")
-
-    email = (env.get("ACME_EMAIL") or "").strip()
-    if email and ("@" not in email or email.startswith("@") or email.endswith("@") or " " in email):
-        problems.append("ACME_EMAIL must look like an email address.")
 
     internal = (env.get("API_INTERNAL_URL") or "").strip().rstrip("/")
     if internal and internal != "http://api:8000":

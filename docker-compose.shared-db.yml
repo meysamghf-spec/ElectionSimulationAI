@@ -1,0 +1,23 @@
+# Optional overlay: use the server's shared PostgreSQL container instead of the bundled db.
+#   docker compose -f docker-compose.yml -f docker-compose.shared-db.yml --profile production up -d --build
+# Requirements (see DEPLOY.md): the shared Postgres container is attached to the external
+# network named by SHARED_DB_NETWORK (default "postgres"), it publishes no host port, and it has
+# a database plus a dedicated role for this app. DATABASE_URL points at it, for example
+#   postgresql+psycopg://electionsim:LONG_PASSWORD@postgres:5432/electionsim
+
+services:
+  db:
+    # Keeps the bundled database from starting.
+    profiles: !override ["bundled-db"]
+  api:
+    environment:
+      DATABASE_URL: ${DATABASE_URL:?Set DATABASE_URL to the shared PostgreSQL URL}
+    depends_on: !reset {}
+    networks: !override
+      - internal
+      - shareddb
+
+networks:
+  shareddb:
+    external: true
+    name: ${SHARED_DB_NETWORK:-postgres}

@@ -170,6 +170,9 @@ def test_api_token_required(tmp_path: pytest.TempPathFactory) -> None:
     )
     with TestClient(application) as secured:
         assert secured.get("/api/v1/health").status_code == 200
+        root = secured.get("/health")
+        assert root.status_code == 200
+        assert root.json() == {"status": "ok", "database": "ok"}
         assert secured.get("/api/v1/simulations").status_code == 401
         ok = secured.get("/api/v1/simulations", headers={"Authorization": "Bearer local-test-token"})
         assert ok.status_code == 200

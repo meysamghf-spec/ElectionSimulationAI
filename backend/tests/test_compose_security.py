@@ -15,18 +15,22 @@ def _load_checker():
     return module
 
 
-def test_production_compose_source_publishes_only_the_proxy() -> None:
+def test_production_compose_source_publishes_no_ports_and_has_no_caddy() -> None:
     text = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
     assert 'profiles: ["production"]' in text
-    assert '"80:80"' in text
-    assert '"443:443"' in text
-    assert "8000:8000" not in text
-    assert "5432:5432" not in text
-    assert "3000:3000" not in text
+    assert "ports:" not in text
+    assert "caddy:" not in text.replace("name: ${PROXY_NETWORK:-caddy}", "")
+    assert "deploy/caddy.Dockerfile" not in text
+    assert "external: true" in text
+    assert "electionsim-web" in text
+    assert "internal: true" in text
     assert "172.28.10.10/32" in text
-    assert "172.28.10.10" in text
     assert "/api/v1/ready" in text
-    assert "caddy_data:/data" in text
+    assert "${POSTGRES_PASSWORD:-}" in text
+    assert "SITE_ADDRESS:?" in text
+    shared = (ROOT / "docker-compose.shared-db.yml").read_text(encoding="utf-8")
+    assert "ports:" not in shared
+    assert "DATABASE_URL:?" in shared
     dev = (ROOT / "docker-compose.dev.yml").read_text(encoding="utf-8")
     assert "127.0.0.1:8000:8000" in dev
     assert "127.0.0.1:3000:3000" in dev
@@ -35,18 +39,24 @@ def test_production_compose_source_publishes_only_the_proxy() -> None:
     assert "caddy" not in dev
 
 
-def test_caddy_replaces_forwarded_headers_and_has_no_baked_domain() -> None:
-    text = (ROOT / "deploy" / "Caddyfile").read_text(encoding="utf-8")
-    assert "{$SITE_ADDRESS}" in text
-    assert "{$ACME_EMAIL}" in text
+def test_bundled_caddy_is_gone_and_shared_snippet_is_safe() -> None:
+    assert not (ROOT / "deploy" / "caddy.Dockerfile").exists()
+    assert not (ROOT / "deploy" / "Caddyfile").exists()
+    text = (ROOT / "deploy" / "Caddyfile.shared.example").read_text(encoding="utf-8")
+    assert "reverse_proxy electionsim-web:3000" in text
     assert "header_up X-Forwarded-For {remote_host}" in text
     assert "header_up X-Real-IP {remote_host}" in text
-    assert "example.com" not in text
-    dockerfile = (ROOT / "deploy" / "caddy.Dockerfile").read_text(encoding="utf-8")
-    assert "wget" in dockerfile
-    assert "HEALTHCHECK" in dockerfile
     web = (ROOT / "frontend" / "Dockerfile").read_text(encoding="utf-8")
-    assert "fetch('http://127.0.0.1:3000/')" in web
+    assert "fetch('http://127.0.0.1:3000/health')" in web
+    assert (ROOT / "DEPLOY.md").exists()
+
+
+def test_env_example_has_no_real_secrets() -> None:
+    lines = (ROOT / ".env.example").read_text(encoding="utf-8").splitlines()
+    values = dict(line.split("=", 1) for line in lines if "=" in line and not line.lstrip().startswith("#"))
+    for name in ("POSTGRES_PASSWORD", "API_TOKEN", "INITIAL_ADMIN_PASSWORD", "LLM_API_KEY", "CREATE_USER_PASSWORD"):
+        assert name in values
+        assert values[name] in {"", "change-me-local-only"}
 
 
 def test_backup_scripts_use_a_scratch_database_and_do_not_print_passwords() -> None:
@@ -62,10 +72,13 @@ def test_backup_scripts_use_a_scratch_database_and_do_not_print_passwords() -> N
     assert "*.dump" in (ROOT / ".gitignore").read_text(encoding="utf-8")
 
 
-def test_rendered_compose_examples() -> None:
-    checker = _load_checker()
-    production = {
-        "networks": {"internal": {"ipam": {"config": [{"subnet": "172.28.10.0/24"}]}}},
+def _production_example() -> dict:
+    return {
+        "networks": {
+            "internal": {"ipam": {"config": [{"subnet": "172.28.10.0/24"}]}},
+            "data": {"internal": True},
+            "proxy": {"external": True, "name": "caddy"},
+        },
         "services": {
             "db": {"networks": ["data"]},
             "api": {
@@ -76,24 +89,35 @@ def test_rendered_compose_examples() -> None:
                     "ALLOW_REGISTRATION": "false",
                 },
             },
-            "web": {"networks": {"internal": {"ipv4_address": "172.28.10.10"}, "edge": {}}},
-            "caddy": {
-                "networks": ["edge"],
-                "ports": [
-                    {"published": "80", "target": 80},
-                    {"published": "443", "target": 443},
-                ],
-            },
+            "web": {"networks": {"internal": {"ipv4_address": "172.28.10.10"}, "proxy": {}}},
         },
     }
+
+
+def test_rendered_compose_examples() -> None:
+    checker = _load_checker()
+    production = _production_example()
     assert checker.compose_problems(production, "production") == []
-    leaked = {
-        "services": {
-            "api": {"ports": [{"published": "8000", "target": 8000, "host_ip": "0.0.0.0"}]},
-        }
-    }
-    leaked_text = "\n".join(checker.compose_problems(leaked, "production"))
-    assert "8000" in leaked_text
+
+    shared = _production_example()
+    del shared["services"]["db"]
+    shared["services"]["api"]["networks"] = ["internal", "shareddb"]
+    assert checker.compose_problems(shared, "production") == []
+
+    with_caddy = _production_example()
+    with_caddy["services"]["caddy"] = {"ports": [{"published": "443", "target": 443}]}
+    problems = "\n".join(checker.compose_problems(with_caddy, "production"))
+    assert "must not bundle Caddy" in problems
+    assert "443" in problems
+
+    leaked = _production_example()
+    leaked["services"]["db"]["ports"] = [{"published": "5432", "target": 5432, "host_ip": "0.0.0.0"}]
+    assert "5432" in "\n".join(checker.compose_problems(leaked, "production"))
+
+    open_data = _production_example()
+    open_data["networks"]["data"] = {}
+    assert any("data network" in p for p in checker.compose_problems(open_data, "production"))
+
     development = {
         "services": {
             "db": {"ports": [{"published": "5432", "target": 5432, "host_ip": "127.0.0.1"}]},
