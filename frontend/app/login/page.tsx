@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
 import { ErrorText } from "@/components/ErrorText";
 import { api } from "@/lib/api";
+import { useI18n } from "@/lib/i18n";
 import type { SessionResponse } from "@/lib/types";
 
 function safeNext(value: string | null): string {
@@ -13,6 +14,7 @@ function safeNext(value: string | null): string {
 }
 
 function LoginForm() {
+  const { t } = useI18n();
   const router = useRouter();
   const params = useSearchParams();
   const [email, setEmail] = useState("");
@@ -48,13 +50,13 @@ function LoginForm() {
   return (
     <div className="stack">
       <header className="page-head">
-        <h1>Sign in</h1>
-        <p>The session stays in an HttpOnly cookie. The password is not stored in this browser.</p>
+        <h1>{t("login.title")}</h1>
+        <p>{t("login.lead")}</p>
       </header>
       <ErrorText error={error} />
       <form className="card stack" onSubmit={(event) => void submit(event)}>
         <label className="field">
-          <span>Email</span>
+          <span>{t("login.email")}</span>
           <input
             type="email"
             autoComplete="username"
@@ -64,7 +66,7 @@ function LoginForm() {
           />
         </label>
         <label className="field">
-          <span>Password</span>
+          <span>{t("login.password")}</span>
           <input
             type="password"
             autoComplete="current-password"
@@ -75,18 +77,23 @@ function LoginForm() {
         </label>
         <div className="button-row">
           <button type="submit" disabled={pending}>
-            {pending ? "Signing in…" : "Sign in"}
+            {pending ? t("login.pending") : t("login.submit")}
           </button>
-          {registrationOpen ? <Link href="/register">Create an account</Link> : null}
+          {registrationOpen ? <Link href="/register">{t("login.register")}</Link> : null}
         </div>
       </form>
     </div>
   );
 }
 
+function LoginFallback() {
+  const { t } = useI18n();
+  return <p>{t("login.loading")}</p>;
+}
+
 export default function LoginPage() {
   return (
-    <Suspense fallback={<p>Loading sign-in…</p>}>
+    <Suspense fallback={<LoginFallback />}>
       <LoginForm />
     </Suspense>
   );

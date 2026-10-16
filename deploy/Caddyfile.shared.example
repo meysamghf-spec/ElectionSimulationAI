@@ -1,0 +1,22 @@
+# Site block for the server's ONE shared Caddy (not started by this repo).
+# Paste into the shared Caddyfile, replace the hostname, then reload Caddy:
+#   docker exec caddy caddy reload --config /etc/caddy/Caddyfile
+# Caddy obtains and renews the HTTPS certificate for the hostname by itself.
+
+election.example.ir {
+	encode gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		X-Frame-Options DENY
+		-Server
+	}
+	# Replace, never append, client-supplied forwarding headers.
+	reverse_proxy electionsim-web:3000 {
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Real-IP {remote_host}
+		health_uri /health
+		health_interval 30s
+	}
+}

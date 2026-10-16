@@ -1,16 +1,24 @@
-# Production stack for one VM. Nothing listens until you opt in:
+# Production stack for a VPS that already runs ONE shared Caddy reverse proxy.
+#   docker network create caddy        # once per server, shared by every app (see DEPLOY.md)
 #   docker compose --profile production up -d --build
-# That publishes only 80 and 443, on the Caddy container.
-# Local development uses docker-compose.dev.yml and does not load this file's ports.
-# Do not add a docker-compose.override.yml that publishes 8000 or 5432.
+# This file publishes NO host ports. The shared Caddy reaches the web container over the
+# external "caddy" network as electionsim-web:3000. The API and database are reachable only
+# on private Compose networks. Shared PostgreSQL instead of the bundled db:
+#   docker compose -f docker-compose.yml -f docker-compose.shared-db.yml --profile production up -d --build
+# Local development uses docker-compose.dev.yml. Do not add a docker-compose.override.yml that publishes ports.
+
+name: electionsim
 
 services:
   db:
-    image: postgres:16-alpine
+    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
     profiles: ["production"]
+    restart: unless-stopped
     environment:
       POSTGRES_USER: election
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD to a long password that is not a placeholder}
+      # Not ":?" so the shared-db overlay can render without it. An empty or short password is still
+      # refused: Postgres will not initialise without one, and the API refuses passwords under 16 chars.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-}
       POSTGRES_DB: election
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -26,13 +34,17 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
+      args:
+        PYTHON_IMAGE: ${PYTHON_IMAGE:-python:3.12-slim-bookworm}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-}
     profiles: ["production"]
+    restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql+psycopg://election:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}@db:5432/election
-      CORS_ORIGINS: https://${SITE_ADDRESS:?Set SITE_ADDRESS to the public hostname}
+      DATABASE_URL: postgresql+psycopg://election:${POSTGRES_PASSWORD:-}@db:5432/election
+      CORS_ORIGINS: https://${SITE_ADDRESS:?Set SITE_ADDRESS to the public hostname, for example election.example.ir}
       API_TOKEN: ${API_TOKEN:-}
       AUTH_MODE: ${AUTH_MODE:-accounts}
-      ALLOW_REGISTRATION: ${ALLOW_REGISTRATION:-false}
+      ALLOW_REGISTRATION: "false"
       INITIAL_ADMIN_EMAIL: ${INITIAL_ADMIN_EMAIL:-}
       INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:-}
       SESSION_HOURS: ${SESSION_HOURS:-12}
@@ -40,7 +52,7 @@ services:
       LLM_BASE_URL: ${LLM_BASE_URL:-https://api.openai.com/v1}
       LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
       ENVIRONMENT: production
-      TRUSTED_PROXY_CIDRS: ${TRUSTED_PROXY_CIDRS:-172.28.10.10/32}
+      TRUSTED_PROXY_CIDRS: 172.28.10.10/32
     depends_on:
       db:
         condition: service_healthy
@@ -64,7 +76,12 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
+      args:
+        NODE_IMAGE: ${NODE_IMAGE:-node:22-bookworm-slim}
+        NPM_REGISTRY: ${NPM_REGISTRY:-}
+        NEXT_PUBLIC_DEFAULT_LOCALE: ${DEFAULT_LOCALE:-fa}
     profiles: ["production"]
+    restart: unless-stopped
     environment:
       API_INTERNAL_URL: http://api:8000
       # Server-side only. Never set NEXT_PUBLIC_API_TOKEN.
@@ -75,56 +92,35 @@ services:
     networks:
       internal:
         ipv4_address: 172.28.10.10
-      edge:
+      proxy:
+        aliases:
+          - electionsim-web
     healthcheck:
       test:
         [
           "CMD",
           "node",
           "-e",
-          "fetch('http://127.0.0.1:3000/').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+          "fetch('http://127.0.0.1:3000/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
         ]
       interval: 10s
-      timeout: 3s
+      timeout: 5s
       start_period: 20s
       retries: 10
 
-  caddy:
-    build:
-      context: .
-      dockerfile: deploy/caddy.Dockerfile
-    profiles: ["production"]
-    environment:
-      SITE_ADDRESS: ${SITE_ADDRESS:?Set SITE_ADDRESS to the public hostname}
-      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL for certificate expiry notices}
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      web:
-        condition: service_healthy
-    networks:
-      - edge
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2019/config/"]
-      interval: 10s
-      timeout: 3s
-      start_period: 10s
-      retries: 10
-
 networks:
+  # Database traffic only. No route to the internet.
   data:
+    internal: true
+  # web <-> api. The fixed web address lets the API trust X-Forwarded-For from web only.
   internal:
     ipam:
       config:
         - subnet: 172.28.10.0/24
-  edge:
+  # Created once per server and shared with the single Caddy container.
+  proxy:
+    external: true
+    name: ${PROXY_NETWORK:-caddy}
 
 volumes:
   pgdata:
-  caddy_data:
-  caddy_config:

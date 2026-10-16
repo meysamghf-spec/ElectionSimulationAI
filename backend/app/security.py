@@ -13,6 +13,7 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 PUBLIC_PATHS = {
+    "/health",
     "/api/v1/health",
     "/api/v1/ready",
     "/docs",

@@ -171,12 +171,29 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(router)
 
+    @app.get("/health")
+    def root_health(request: Request) -> JSONResponse:
+        """Unauthenticated liveness plus database check for proxies and uptime monitors."""
+        from sqlalchemy import text
+
+        database = "ok"
+        try:
+            with request.app.state.engine.connect() as connection:
+                connection.execute(text("SELECT 1"))
+        except Exception:
+            database = "unavailable"
+        healthy = database == "ok"
+        return JSONResponse(
+            {"status": "ok" if healthy else "degraded", "database": database},
+            status_code=200 if healthy else 503,
+        )
+
     @app.get("/")
     def root() -> dict[str, str]:
         return {
             "name": "ElectionSimulationAI",
             "docs": "/docs",
-            "health": "/api/v1/health",
+            "health": "/health",
         }
 
     return app

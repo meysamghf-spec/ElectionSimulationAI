@@ -1,5 +1,7 @@
 # Deployment
 
+> **Current deployment model:** the production Compose file no longer bundles Caddy and publishes no ports. Follow [DEPLOY.md](../DEPLOY.md) (shared Caddy, subdomain, Iranian VPS). Sections below that mention a bundled Caddy container, `ACME_EMAIL`, or ports 80/443 on this stack describe the previous layout.
+
 No public URL has been deployed from this repository. Nothing in this file creates a server, a DNS record, or a certificate. The commands below are what an operator runs on a machine they already control.
 
 Account registration is not suitable for unrestricted public signup until email verification, password recovery, abuse prevention, and appropriate account-management workflows exist. Production startup rejects `ALLOW_REGISTRATION=true`.
